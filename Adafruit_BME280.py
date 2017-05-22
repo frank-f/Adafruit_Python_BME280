@@ -53,6 +53,14 @@ BME280_FILTER_4 = 2
 BME280_FILTER_8 = 3
 BME280_FILTER_16 = 4
 
+# Modes
+BME280_SLEEP = 0
+BME280_FORCED = 1 # 2 works aswell
+BME280_NORMAL = 3
+
+# Commands
+BME280_RESET = 0xB6
+
 # BME280 Registers
 
 BME280_REGISTER_DIG_T1 = 0x88  # Trimming parameter registers
@@ -132,14 +140,17 @@ class BME280(object):
         except IOError:
             print("Unable to communicate with sensor, check permissions.")
             exit()
+        self.initialize()
+
+    def initialize(self):
         # Load calibration values.
         self._load_calibration()
         self._device.write8(BME280_REGISTER_CONTROL, 0x24)  # Sleep mode
         time.sleep(0.002)
-        self._device.write8(BME280_REGISTER_CONFIG, ((standby << 5) | (filter << 2)))
+        self._device.write8(BME280_REGISTER_CONFIG, ((self._standby << 5) | (self._filter << 2)))
         time.sleep(0.002)
-        self._device.write8(BME280_REGISTER_CONTROL_HUM, h_mode)  # Set Humidity Oversample
-        self._device.write8(BME280_REGISTER_CONTROL, ((t_mode << 5) | (p_mode << 2) | 3))  # Set Temp/Pressure Oversample and enter Normal mode
+        self._device.write8(BME280_REGISTER_CONTROL_HUM, self._h_mode)  # Set Humidity Oversample
+        self._device.write8(BME280_REGISTER_CONTROL, ((self._t_mode << 5) | (self._p_mode << 2) | 3))  # Set Temp/Pressure Oversample and enter Normal mode
         self.t_fine = 0.0
 
     def _load_calibration(self):
@@ -184,6 +195,19 @@ class BME280(object):
         print 'dig_H5 = {0:d}'.format (self.dig_H5)
         print 'dig_H6 = {0:d}'.format (self.dig_H6)
         '''
+
+    def set_mode(self, mode):
+        if mode not in [BME280_SLEEP, BME280_FORCED, BME280_NORMAL]:
+            return False
+        control = self._device.readU8(BME280_REGISTER_CONTROL)
+        control &= ~3  # Clear mode bits
+        control |= mode  # Set new mode bits
+        self._device.write8(BME280_REGISTER_CONTROL, control)
+
+    def reset(self):
+        self._device.write8(BME280_REGISTER_SOFTRESET, BME280_RESET)
+        time.sleep(0.002)
+        self.initialize()
 
     def read_raw_temp(self):
         """Waits for reading to become available on device."""
